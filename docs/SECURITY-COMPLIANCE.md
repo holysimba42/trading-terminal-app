@@ -10,10 +10,10 @@
 ## Secrets Handling
 
 - **Never** commit API keys, tokens, or passwords to git.
-- Use environment variables for sensitive config:
-  - `SKIP_GIT_PERSIST` – disable git persistence
-  - `GIT_PERSIST_PUSH` – enable remote push (requires auth)
-  - `MOCK_EXECUTION` – test mode (no real clicks)
+- Use environment variables for sensitive config. See `.env.example` for full list:
+  - `SKIP_GIT_PERSIST`, `GIT_PERSIST_PUSH` – git persistence
+  - `MOCK_EXECUTION`, `PAPER_TRADING` – execution modes
+  - `ALERT_WEBHOOK_URL` – webhook for alerts
   - `DEBUG` – verbose logging
 - `data/db.json` contains account state; add to `.gitignore` if storing locally only.
 - `.env` files are gitignored; use for local secrets.

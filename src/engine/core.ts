@@ -177,6 +177,7 @@ export async function initializeSovereignEngine(): Promise<SovereignEngine> {
       return { result, reason };
     },
     applyFriction: (contracts: number) => applyFriction(db, contracts),
+    /** Call when trade PnL is known; settles next day via settleT1(). */
     addPendingT1: (amount: number) => {
       db.data.account.pending_t1_funds += amount;
     },
