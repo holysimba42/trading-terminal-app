@@ -4,7 +4,8 @@
  */
 import { initializeSovereignEngine, type SovereignEngine } from "./core.js";
 import { startSocketBridge } from "./socket-bridge.js";
-import { parsePayload, type OptionsQuote } from "./parser.js";
+import { parsePayload } from "./parser.js";
+import { generateSignal } from "./signal.js";
 
 async function main() {
   const engine = await initializeSovereignEngine();
@@ -17,16 +18,18 @@ async function main() {
       if (process.env.DEBUG) {
         console.log("[Orchestrator] Parsed:", q.symbol, q.strike, "bid:", q.bid, "ask:", q.ask);
       }
-      // Step 3: signal generation; Step 4: execution
-      onParsedQuote(engine, q);
+      const signal = generateSignal(q);
+      if (signal) {
+        onTradeSignal(engine, signal);
+      }
     }
   });
 
   console.log("[Orchestrator] Socket bridge active. Awaiting sniffer data.");
 }
 
-function onParsedQuote(_engine: SovereignEngine, _quote: OptionsQuote) {
-  // Step 3: signal generation; Step 4: execution
+function onTradeSignal(_engine: SovereignEngine, _signal: import("./signal.js").TradeSignal) {
+  // Step 4: execution via Integrity Watchdog + kernel
 }
 
 main().catch((err) => {
