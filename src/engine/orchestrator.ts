@@ -8,12 +8,13 @@ import { parsePayload } from "./parser.js";
 import { generateSignal, type TradeSignal } from "./signal.js";
 import { executeClickWithRetry } from "./execution.js";
 import { persistToGit } from "./git-persist.js";
+import { logger } from "./logger.js";
 
 async function main() {
   const engine = await initializeSovereignEngine();
-  console.log("[Orchestrator] Engine initialized. Settled funds:", engine.db.data.account.settled_funds);
+  logger.info(`Engine initialized. Settled funds: ${engine.db.data.account.settled_funds}`);
 
-  startSocketBridge((payload) => {
+  const server = startSocketBridge((payload) => {
     if (payload.length === 0) return;
     const quotes = parsePayload(payload);
     for (const q of quotes) {
@@ -27,7 +28,15 @@ async function main() {
     }
   });
 
-  console.log("[Orchestrator] Socket bridge active. Awaiting sniffer data.");
+  const shutdown = () => {
+    logger.info("Shutting down...");
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 5000);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+
+  logger.info("Socket bridge active. Awaiting sniffer data.");
 }
 
 async function onTradeSignal(engine: SovereignEngine, signal: TradeSignal) {
@@ -42,12 +51,12 @@ async function onTradeSignal(engine: SovereignEngine, signal: TradeSignal) {
     await engine.persist();
     persistToGit();
     if (process.env.DEBUG) {
-      console.log("[Orchestrator] Executed:", signal.side, signal.contracts, signal.symbol);
+      logger.info(`Executed: ${signal.side} ${signal.contracts} ${signal.symbol}`);
     }
   }
 }
 
 main().catch((err) => {
-  console.error("[Orchestrator] Fatal:", err);
+  logger.error(`Fatal: ${err}`);
   process.exit(1);
 });
