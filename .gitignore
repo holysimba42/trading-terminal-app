@@ -10,3 +10,4 @@ venv/
 build/
 *.node
 .DS_Store
+data/raw-capture/

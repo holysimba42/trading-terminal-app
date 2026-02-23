@@ -2,6 +2,11 @@
  * HFT Cash v6 - PM2 Ecosystem
  * pm2 start ecosystem.config.cjs
  */
+const path = require("path");
+const fs = require("fs");
+const logsDir = path.join(__dirname, "logs");
+if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+
 module.exports = {
   apps: [
     {
