@@ -21,16 +21,9 @@ if [ -f tsconfig.json ]; then
   npm run build
 fi
 
-# C++ kernel: Windows-only for Webull HWND. Skip on Unix.
-if [ "$(uname -s)" = "Linux" ] || [ "$(uname -s)" = "Darwin" ]; then
-  echo "Skipping C++ kernel rebuild (Windows-only for Webull Ghost-Mode)."
-else
-  cd src/kernel
-  if [ -f binding.gyp ]; then
-    node-gyp configure build
-    echo "C++ kernel module built."
-  fi
-  cd "$PROJECT_ROOT"
+# C++ kernel: Build on all platforms (Linux: stub; Windows: full Ghost-Mode)
+if [ -f package.json ]; then
+  npm run rebuild 2>/dev/null || echo "Note: npm run rebuild failed (node-gyp may need build tools)"
 fi
 
 echo "Initialize-Project complete."
