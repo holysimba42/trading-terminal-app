@@ -1,7 +1,14 @@
 /**
  * HFT Cash v6 - Signal Configuration
- * Tunable strategy parameters for backtest and live.
+ * Tunable strategy parameters. Loads from config.json when available.
  */
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CONFIG_PATH = path.join(__dirname, "../../config.json");
+
 export interface SignalConfig {
   maxSpreadCents: number;
   minMidCents: number;
@@ -18,7 +25,17 @@ export const DEFAULT_SIGNAL_CONFIG: SignalConfig = {
   positionSizePct: 0.02,
 };
 
-let config = { ...DEFAULT_SIGNAL_CONFIG };
+function loadFromFile(): Partial<SignalConfig> {
+  try {
+    const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+    const parsed = JSON.parse(raw);
+    return parsed.signal ?? {};
+  } catch {
+    return {};
+  }
+}
+
+let config: SignalConfig = { ...DEFAULT_SIGNAL_CONFIG, ...loadFromFile() };
 
 export function getSignalConfig(): SignalConfig {
   return { ...config };

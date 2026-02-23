@@ -6,6 +6,7 @@ import http from "http";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { fireAlert } from "./alerts.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.MONITOR_PORT) || 31338;
@@ -27,6 +28,12 @@ function loadDb(): Record<string, unknown> {
 export function startMonitor() {
   const server = http.createServer((req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
+    if (req.url === "/health" || req.url === "/api/health") {
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ status: "ok", ts: new Date().toISOString() }));
+      return;
+    }
+
     if (req.url === "/api/status") {
       const db = loadDb();
       const account = (db.account || {}) as Record<string, number>;
@@ -46,6 +53,10 @@ export function startMonitor() {
           : (operational_limits.trades_executed_today ?? 0) >= (operational_limits.daily_trade_cap ?? 10)
             ? "DAILY_CAP"
             : "OK";
+
+      if (alert !== "OK") {
+        fireAlert(alert, { drawdown, peak, settled_funds: account.settled_funds });
+      }
 
       res.setHeader("Content-Type", "application/json");
       res.end(

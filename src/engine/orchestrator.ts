@@ -9,21 +9,40 @@ import { generateSignal, type TradeSignal } from "./signal.js";
 import { executeClickWithRetry } from "./execution.js";
 import { persistToGit } from "./git-persist.js";
 import { logger } from "./logger.js";
+import {
+  createLatencyRecord,
+  recordParse,
+  recordSignal,
+  recordExecuted,
+  dataLatencyMs,
+  execLatencyMs,
+  isWithinTargets,
+} from "./latency.js";
+import { validateStartup } from "./startup.js";
 
 async function main() {
+  const startup = await validateStartup();
+  if (!startup.ok) {
+    startup.errors.forEach((e) => logger.error(`Startup: ${e}`));
+    process.exit(1);
+  }
+
   const engine = await initializeSovereignEngine();
   logger.info(`Engine initialized. Settled funds: ${engine.db.data.account.settled_funds}`);
 
   const server = startSocketBridge((payload) => {
     if (payload.length === 0) return;
+    const rec = createLatencyRecord();
     const quotes = parsePayload(payload);
+    recordParse(rec);
     for (const q of quotes) {
       if (process.env.DEBUG) {
         console.log("[Orchestrator] Parsed:", q.symbol, q.strike, "bid:", q.bid, "ask:", q.ask);
       }
       const signal = generateSignal(q);
       if (signal) {
-        void onTradeSignal(engine, signal);
+        recordSignal(rec);
+        void onTradeSignal(engine, signal, rec);
       }
     }
   });
@@ -39,20 +58,30 @@ async function main() {
   logger.info("Socket bridge active. Awaiting sniffer data.");
 }
 
-async function onTradeSignal(engine: SovereignEngine, signal: TradeSignal) {
+async function onTradeSignal(
+  engine: SovereignEngine,
+  signal: TradeSignal,
+  rec: import("./latency.js").LatencyRecord
+) {
   const payload = { contracts: signal.contracts, side: signal.side, symbol: signal.symbol };
   const { result } = engine.performAuditWithLog(payload);
   if (result !== "YES") return;
 
-  const ok = executeClickWithRetry(3, 50);
+  const paperTrading = process.env.PAPER_TRADING === "1";
+  const ok = paperTrading || executeClickWithRetry(3, 50);
   if (ok) {
+    if (!paperTrading) recordExecuted(rec);
     engine.applyFriction(signal.contracts);
     engine.recordTrade(signal.contracts);
     await engine.persist();
-    persistToGit();
+    if (!paperTrading) persistToGit();
+    const { data, exec } = isWithinTargets(rec);
     if (process.env.DEBUG) {
-      logger.info(`Executed: ${signal.side} ${signal.contracts} ${signal.symbol}`);
+      logger.info(
+        `Executed: ${signal.side} ${signal.contracts} ${signal.symbol} | data: ${dataLatencyMs(rec)}ms exec: ${execLatencyMs(rec)}ms`
+      );
     }
+    if (!data || !exec) logger.warn(`Latency target miss: data=${dataLatencyMs(rec)}ms exec=${execLatencyMs(rec)}ms`);
   }
 }
 
