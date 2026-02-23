@@ -3,7 +3,7 @@
   "version": "6.0.0",
   "description": "HFT Cash v6 - SPY/QQQ 0DTE Ghost-Mode Webull Bot. T+1 Cash Settlement, 10 trades/day cap.",
   "type": "module",
-  "main": "dist/engine/orchestrator.js",
+  "main": "dist/engine/core.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/engine/orchestrator.js",
