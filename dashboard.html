@@ -34,7 +34,7 @@
   </div>
 
   <script>
-    const API = 'http://127.0.0.1:31338/api/status';
+    const API = (window.location.origin || 'http://127.0.0.1:31338') + '/api/status';
     let chart;
 
     async function fetchStatus() {
