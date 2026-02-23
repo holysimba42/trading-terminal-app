@@ -1,8 +1,8 @@
 {
   "account": {
-    "starting_capital": 300.00,
-    "settled_funds": 300.00,
-    "pending_t1_funds": 0.00,
+    "starting_capital": 300,
+    "settled_funds": 300,
+    "pending_t1_funds": 0,
     "max_drawdown_limit": 0.5586
   },
   "operational_limits": {
@@ -11,7 +11,7 @@
     "max_contracts_per_order": 100,
     "friction_spread": 0.05,
     "friction_slippage": 0.02,
-    "commission": 0.00
+    "commission": 0
   },
   "metrics": {
     "target_win_rate": 0.8467,

@@ -8,7 +8,9 @@
     "build": "tsc",
     "start": "node dist/engine/orchestrator.js",
     "simulate": "node dist/engine/simulate.js",
-    "rebuild": "node-gyp rebuild --directory src/kernel"
+    "rebuild": "node-gyp rebuild --directory src/kernel",
+    "settle-t1": "node dist/engine/settlement.js settle-t1",
+    "reset-daily": "node dist/engine/settlement.js reset-daily"
   },
   "dependencies": {
     "lowdb": "^7.0.1",
