@@ -20,6 +20,7 @@ import {
 } from "./latency.js";
 import { validateStartup } from "./startup.js";
 import { fireAlert } from "./alerts.js";
+import { getExecutionConfig } from "./config-loader.js";
 
 async function main() {
   const startup = await validateStartup();
@@ -74,7 +75,8 @@ async function onTradeSignal(
   }
 
   const paperTrading = process.env.PAPER_TRADING === "1";
-  const ok = paperTrading || executeClickWithRetry(3, 50);
+  const execCfg = getExecutionConfig();
+  const ok = paperTrading || executeClickWithRetry(execCfg.retries, execCfg.retryDelayMs);
   if (ok) {
     if (!paperTrading) recordExecuted(rec);
     engine.applyFriction(signal.contracts);
