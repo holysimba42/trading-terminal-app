@@ -7,6 +7,7 @@ import { startSocketBridge } from "./socket-bridge.js";
 import { parsePayload } from "./parser.js";
 import { generateSignal, type TradeSignal } from "./signal.js";
 import { executeClick } from "./execution.js";
+import { persistToGit } from "./git-persist.js";
 
 async function main() {
   const engine = await initializeSovereignEngine();
@@ -39,6 +40,7 @@ async function onTradeSignal(engine: SovereignEngine, signal: TradeSignal) {
     engine.applyFriction(signal.contracts);
     engine.recordTrade(signal.contracts);
     await engine.persist();
+    persistToGit();
     if (process.env.DEBUG) {
       console.log("[Orchestrator] Executed:", signal.side, signal.contracts, signal.symbol);
     }
