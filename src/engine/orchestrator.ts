@@ -32,8 +32,8 @@ async function main() {
 
 async function onTradeSignal(engine: SovereignEngine, signal: TradeSignal) {
   const payload = { contracts: signal.contracts, side: signal.side, symbol: signal.symbol };
-  const audit = engine.performAudit(payload);
-  if (audit !== "YES") return;
+  const { result } = engine.performAuditWithLog(payload);
+  if (result !== "YES") return;
 
   const ok = executeClick();
   if (ok) {

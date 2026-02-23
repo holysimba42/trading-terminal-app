@@ -36,10 +36,18 @@ export interface Metrics {
   equity_curve: number[];
 }
 
+export interface AuditLogEntry {
+  ts: string;
+  payload: TradePayload;
+  result: AuditResult;
+  reason?: string;
+}
+
 export interface DbSchema {
   account: AccountData;
   operational_limits: OperationalLimits;
   metrics: Metrics;
+  audit_trail: AuditLogEntry[];
 }
 
 const defaultData: DbSchema = {
@@ -61,6 +69,7 @@ const defaultData: DbSchema = {
     target_win_rate: 0.8467,
     equity_curve: [],
   },
+  audit_trail: [],
 };
 
 export type AuditResult = "YES" | "NO";
@@ -68,6 +77,7 @@ export type AuditResult = "YES" | "NO";
 export interface SovereignEngine {
   db: { data: DbSchema; write: () => Promise<void> };
   performAudit: (trade: TradePayload) => AuditResult;
+  performAuditWithLog: (trade: TradePayload) => { result: AuditResult; reason?: string };
   applyFriction: (contracts: number) => void;
   settleT1: () => void;
   resetDailyTrades: () => void;
@@ -83,29 +93,44 @@ export function performAudit(
   db: { data: DbSchema },
   proposedTrade: TradePayload
 ): AuditResult {
+  return performAuditWithReason(db, proposedTrade).result;
+}
+
+export function performAuditWithReason(
+  db: { data: DbSchema },
+  proposedTrade: TradePayload
+): { result: AuditResult; reason?: string } {
   const { operational_limits, account } = db.data;
 
-  // NO: Daily trade cap exceeded
   if (operational_limits.trades_executed_today >= operational_limits.daily_trade_cap) {
-    return "NO";
+    return { result: "NO", reason: "daily_trade_cap" };
   }
-
-  // NO: Contract limit exceeded
   if (proposedTrade.contracts > operational_limits.max_contracts_per_order) {
-    return "NO";
+    return { result: "NO", reason: "max_contracts" };
   }
 
-  // NO: Would exceed max drawdown
   const peak = Math.max(
     account.starting_capital,
     ...(db.data.metrics.equity_curve.length ? [Math.max(...db.data.metrics.equity_curve)] : [])
   );
   const currentDrawdown = 1 - account.settled_funds / peak;
   if (currentDrawdown >= account.max_drawdown_limit) {
-    return "NO";
+    return { result: "NO", reason: "max_drawdown" };
   }
 
-  return "YES";
+  return { result: "YES" };
+}
+
+function appendAuditLog(db: { data: DbSchema }, payload: TradePayload, result: AuditResult, reason?: string) {
+  db.data.audit_trail.push({
+    ts: new Date().toISOString(),
+    payload: { ...payload },
+    result,
+    reason,
+  });
+  if (db.data.audit_trail.length > 1000) {
+    db.data.audit_trail = db.data.audit_trail.slice(-500);
+  }
 }
 
 /**
@@ -138,10 +163,18 @@ export function resetDailyTrades(db: { data: DbSchema }): void {
 export async function initializeSovereignEngine(): Promise<SovereignEngine> {
   const dbPath = path.join(__dirname, "../../data/db.json");
   const db = await JSONFilePreset<DbSchema>(dbPath, defaultData);
+  if (!Array.isArray(db.data.audit_trail)) {
+    db.data.audit_trail = [];
+  }
 
   return {
     db,
     performAudit: (trade: TradePayload) => performAudit(db, trade),
+    performAuditWithLog: (trade: TradePayload) => {
+      const { result, reason } = performAuditWithReason(db, trade);
+      appendAuditLog(db, trade, result, reason);
+      return { result, reason };
+    },
     applyFriction: (contracts: number) => applyFriction(db, contracts),
     settleT1: () => settleT1(db),
     resetDailyTrades: () => resetDailyTrades(db),

@@ -16,5 +16,6 @@
   "metrics": {
     "target_win_rate": 0.8467,
     "equity_curve": []
-  }
+  },
+  "audit_trail": []
 }
