@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HFT Cash v6 - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-900 text-white p-8">
+  <div class="max-w-6xl mx-auto">
+    <header class="mb-8 border-b border-slate-700 pb-4">
+      <h1 class="text-3xl font-bold text-blue-400">HFT Cash v6 Dashboard</h1>
+      <p class="text-slate-400">Status: <span id="alert" class="font-mono">--</span></p>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+        <h2 class="text-xl font-semibold mb-4 text-slate-200">Account</h2>
+        <div class="space-y-2">
+          <div class="flex justify-between"><span>Settled:</span><span id="settled" class="text-blue-300">$0</span></div>
+          <div class="flex justify-between"><span>Drawdown:</span><span id="drawdown" class="text-amber-400">0%</span></div>
+          <div class="flex justify-between"><span>Trades Today:</span><span id="trades">0/10</span></div>
+        </div>
+      </div>
+      <div class="md:col-span-2 bg-slate-800 p-6 rounded-xl border border-slate-700">
+        <canvas id="equityChart" height="120"></canvas>
+      </div>
+    </div>
+
+    <div class="mt-8 bg-black p-6 rounded-xl font-mono text-sm border border-slate-700">
+      <h3 class="text-blue-400 mb-4">Audit Trail (last 20)</h3>
+      <div id="audit" class="space-y-1"></div>
+    </div>
+  </div>
+
+  <script>
+    const API = 'http://127.0.0.1:31338/api/status';
+    let chart;
+
+    async function fetchStatus() {
+      try {
+        const r = await fetch(API);
+        const d = await r.json();
+        document.getElementById('settled').textContent = '$' + d.account.settled_funds.toFixed(2);
+        document.getElementById('drawdown').textContent = (d.drawdown * 100).toFixed(2) + '%';
+        document.getElementById('trades').textContent = d.operational_limits.trades_executed_today + '/' + d.operational_limits.daily_trade_cap;
+
+        const alertEl = document.getElementById('alert');
+        alertEl.textContent = d.alert;
+        alertEl.className = d.alert === 'MAX_DRAWDOWN' ? 'text-red-400 font-mono' : d.alert === 'DAILY_CAP' ? 'text-amber-400 font-mono' : 'text-green-400 font-mono';
+
+        const curve = [d.account.starting_capital, ...d.metrics.equity_curve];
+        if (chart) chart.data.datasets[0].data = curve;
+        else {
+          chart = new Chart(document.getElementById('equityChart'), {
+            type: 'line',
+            data: { labels: curve.map((_, i) => i), datasets: [{ label: 'Equity', data: curve, borderColor: '#4ade80', tension: 0.3 }] },
+            options: { scales: { y: { grid: { color: '#334155' } } } }
+          });
+        }
+
+        const auditEl = document.getElementById('audit');
+        auditEl.innerHTML = (d.audit_trail || []).map(a => 
+          `<div><span class="text-slate-500">[${a.ts?.slice(11,19) || ''}]</span> ${a.result} ${a.payload ? JSON.stringify(a.payload) : ''} ${a.reason ? '('+a.reason+')' : ''}</div>`
+        ).join('');
+      } catch (e) {
+        document.getElementById('alert').textContent = 'OFFLINE';
+        document.getElementById('alert').className = 'text-red-400 font-mono';
+      }
+    }
+
+    fetchStatus();
+    setInterval(fetchStatus, 2000);
+  </script>
+</body>
+</html>

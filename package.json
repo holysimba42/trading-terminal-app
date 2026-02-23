@@ -12,7 +12,8 @@
     "settle-t1": "node dist/engine/settlement.js settle-t1",
     "reset-daily": "node dist/engine/settlement.js reset-daily",
     "e2e": "node dist/engine/e2e-test.js",
-    "backtest": "node dist/engine/backtest.js"
+    "backtest": "node dist/engine/backtest.js",
+    "monitor": "node dist/engine/monitor.js"
   },
   "dependencies": {
     "lowdb": "^7.0.1",
