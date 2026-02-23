@@ -66,12 +66,13 @@ const defaultData: DbSchema = {
 export type AuditResult = "YES" | "NO";
 
 export interface SovereignEngine {
-  db: { data: DbSchema };
+  db: { data: DbSchema; write: () => Promise<void> };
   performAudit: (trade: TradePayload) => AuditResult;
   applyFriction: (contracts: number) => void;
   settleT1: () => void;
   resetDailyTrades: () => void;
   recordTrade: (contracts: number) => void;
+  persist: () => Promise<void>;
 }
 
 /**
@@ -148,5 +149,6 @@ export async function initializeSovereignEngine(): Promise<SovereignEngine> {
       db.data.operational_limits.trades_executed_today += 1;
       db.data.metrics.equity_curve.push(db.data.account.settled_funds);
     },
+    persist: () => db.write(),
   };
 }

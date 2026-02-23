@@ -5,7 +5,8 @@
 import { initializeSovereignEngine, type SovereignEngine } from "./core.js";
 import { startSocketBridge } from "./socket-bridge.js";
 import { parsePayload } from "./parser.js";
-import { generateSignal } from "./signal.js";
+import { generateSignal, type TradeSignal } from "./signal.js";
+import { executeClick } from "./execution.js";
 
 async function main() {
   const engine = await initializeSovereignEngine();
@@ -20,7 +21,7 @@ async function main() {
       }
       const signal = generateSignal(q);
       if (signal) {
-        onTradeSignal(engine, signal);
+        void onTradeSignal(engine, signal);
       }
     }
   });
@@ -28,8 +29,20 @@ async function main() {
   console.log("[Orchestrator] Socket bridge active. Awaiting sniffer data.");
 }
 
-function onTradeSignal(_engine: SovereignEngine, _signal: import("./signal.js").TradeSignal) {
-  // Step 4: execution via Integrity Watchdog + kernel
+async function onTradeSignal(engine: SovereignEngine, signal: TradeSignal) {
+  const payload = { contracts: signal.contracts, side: signal.side, symbol: signal.symbol };
+  const audit = engine.performAudit(payload);
+  if (audit !== "YES") return;
+
+  const ok = executeClick();
+  if (ok) {
+    engine.applyFriction(signal.contracts);
+    engine.recordTrade(signal.contracts);
+    await engine.persist();
+    if (process.env.DEBUG) {
+      console.log("[Orchestrator] Executed:", signal.side, signal.contracts, signal.symbol);
+    }
+  }
 }
 
 main().catch((err) => {
