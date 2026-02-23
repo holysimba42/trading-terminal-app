@@ -37,14 +37,11 @@ if (Test-Path "tsconfig.json") {
     npm run build
 }
 
-# Rebuild C++ native addon (Windows only)
+# Rebuild C++ native addon (Windows: full Webull Ghost-Mode; Linux: stub)
 if (-not $SkipRebuild) {
-    Set-Location (Join-Path $ProjectRoot "src\kernel")
-    if (Test-Path "binding.gyp") {
-        node-gyp configure build
-        Write-Host "C++ kernel module built." -ForegroundColor Green
-    }
     Set-Location $ProjectRoot
+    npm run rebuild
+    Write-Host "C++ kernel module built." -ForegroundColor Green
 }
 
 Write-Host "Initialize-Project complete." -ForegroundColor Green

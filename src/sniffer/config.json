@@ -1,0 +1,14 @@
+{
+  "webull_hosts": [
+    "api.webull.com",
+    "data-api.webull.com",
+    "events-api.webull.com"
+  ],
+  "fallback_filter": "tcp port 443",
+  "target_port": 443,
+  "interface": null,
+  "socket_bridge": {
+    "unix_path": "/tmp/hft-cash-v6-sniffer.sock",
+    "tcp_fallback": ["127.0.0.1", 31337]
+  }
+}

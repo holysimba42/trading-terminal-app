@@ -3,10 +3,12 @@
 HFT Cash v6 - Ghost-Mode Data Acquisition Layer
 Molecular Precision Hook: Targets raw TCP payloads for SPY/QQQ 0DTE High Gamma Scalping.
 Intercepts options data before Webull UI rendering. Target: <10ms latency.
+Configured to isolate Webull data server IP routes via config.json.
 """
-import socket
-import struct
+import json
 import os
+import socket
+from pathlib import Path
 
 try:
     import scapy.all as scapy
@@ -14,39 +16,107 @@ try:
 except ImportError:
     SCAPY_AVAILABLE = False
 
-# Unix/Windows Domain Socket path for Node.js engine bridge
-SOCKET_PATH = "/tmp/hft-cash-v6-sniffer.sock" if os.name != "nt" else r"\\.\pipe\hft-cash-v6-sniffer"
+CONFIG_PATH = Path(__file__).parent / "config.json"
 
 
-def forward_to_engine(payload: bytes) -> None:
+def load_config() -> dict:
+    """Load sniffer config. Falls back to defaults if missing."""
+    if CONFIG_PATH.exists():
+        with open(CONFIG_PATH) as f:
+            return json.load(f)
+    return {
+        "webull_hosts": ["api.webull.com", "data-api.webull.com", "events-api.webull.com"],
+        "fallback_filter": "tcp port 443",
+        "target_port": 443,
+    }
+
+
+def resolve_webull_ips(hosts: list[str]) -> list[str]:
+    """Resolve Webull hostnames to IPs for BPF filter isolation."""
+    ips = set()
+    for host in hosts:
+        try:
+            result = socket.getaddrinfo(host, None, socket.AF_INET)
+            for _, _, _, _, (ip, _) in result:
+                ips.add(ip)
+        except (socket.gaierror, OSError):
+            pass
+    return list(ips)
+
+
+def build_bpf_filter(ips: list[str], port: int, fallback: str) -> str:
+    """Build BPF filter isolating Webull data server routes."""
+    if not ips:
+        return fallback
+    host_clauses = " or ".join(f"host {ip}" for ip in ips)
+    return f"tcp port {port} and ({host_clauses})"
+
+
+def forward_to_engine(payload: bytes, config: dict) -> None:
     """Forward hex payload to Node.js engine via internal socket."""
-    try:
-        if os.name == "nt":
+    bridge = config.get("socket_bridge", {})
+    if os.name == "nt":
+        addr = bridge.get("tcp_fallback", ["127.0.0.1", 31337])
+        host, port = addr[0], addr[1]
+        try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect(("127.0.0.1", 31337))  # Windows: use TCP fallback
-        else:
+            sock.connect((host, port))
+            sock.sendall(payload.hex().encode() + b"\n")
+            sock.close()
+        except (ConnectionRefusedError, OSError):
+            pass
+    else:
+        path = bridge.get("unix_path", "/tmp/hft-cash-v6-sniffer.sock")
+        try:
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect(SOCKET_PATH)
-        sock.sendall(payload.hex().encode() + b"\n")
-        sock.close()
-    except (ConnectionRefusedError, FileNotFoundError, OSError):
-        pass  # Engine not listening; drop packet
+            sock.connect(path)
+            sock.sendall(payload.hex().encode() + b"\n")
+            sock.close()
+        except (ConnectionRefusedError, FileNotFoundError, OSError):
+            pass
 
 
-def process_packet(packet) -> None:
+def process_packet(packet, config: dict) -> None:
     """Extract raw TCP payload and forward to Node.js engine."""
     if packet.haslayer(scapy.Raw):
         payload = bytes(packet[scapy.Raw].load)
         if len(payload) > 0:
-            forward_to_engine(payload)
+            forward_to_engine(payload, config)
 
 
 def main() -> None:
+    import sys
+    dry_run = "--dry-run" in sys.argv
+
     if not SCAPY_AVAILABLE:
         print("ERROR: scapy not installed. Run: pip install -r requirements.txt")
+        print("On Windows: Install Npcap for packet capture (https://npcap.com)")
         return
-    # Target Webull data stream (HTTPS)
-    scapy.sniff(filter="tcp port 443", prn=process_packet, store=False)
+
+    config = load_config()
+    hosts = config.get("webull_hosts", [])
+    port = config.get("target_port", 443)
+    fallback = config.get("fallback_filter", "tcp port 443")
+
+    ips = resolve_webull_ips(hosts)
+    bpf = build_bpf_filter(ips, port, fallback)
+
+    if ips:
+        print(f"Webull IPs isolated: {', '.join(ips)}")
+        print(f"BPF filter: {bpf}")
+    else:
+        print(f"Could not resolve Webull hosts. Using fallback: {bpf}")
+
+    if dry_run:
+        print("Dry-run: config validated. Run without --dry-run to capture (requires root/Npcap).")
+        return
+
+    iface = config.get("interface")
+    kwargs = {"filter": bpf, "prn": lambda p: process_packet(p, config), "store": False}
+    if iface:
+        kwargs["iface"] = iface
+
+    scapy.sniff(**kwargs)
 
 
 if __name__ == "__main__":
