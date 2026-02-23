@@ -6,7 +6,7 @@ import { initializeSovereignEngine, type SovereignEngine } from "./core.js";
 import { startSocketBridge } from "./socket-bridge.js";
 import { parsePayload } from "./parser.js";
 import { generateSignal, type TradeSignal } from "./signal.js";
-import { executeClick } from "./execution.js";
+import { executeClickWithRetry } from "./execution.js";
 import { persistToGit } from "./git-persist.js";
 
 async function main() {
@@ -35,7 +35,7 @@ async function onTradeSignal(engine: SovereignEngine, signal: TradeSignal) {
   const { result } = engine.performAuditWithLog(payload);
   if (result !== "YES") return;
 
-  const ok = executeClick();
+  const ok = executeClickWithRetry(3, 50);
   if (ok) {
     engine.applyFriction(signal.contracts);
     engine.recordTrade(signal.contracts);
