@@ -3,6 +3,7 @@
  * Strategy logic for SPY/QQQ 0DTE High Gamma Scalping.
  */
 import type { OptionsQuote } from "./parser.js";
+import { getSignalConfig } from "./signal-config.js";
 
 export interface TradeSignal {
   side: "BUY" | "SELL";
@@ -12,9 +13,9 @@ export interface TradeSignal {
   expiry: string;
 }
 
-const MAX_SPREAD_CENTS = 5; // $0.05 friction spread
-const MIN_MID_CENTS = 10;   // Avoid penny options noise
-const MAX_CONTRACTS = 100;
+export interface OptionsQuoteExtended extends OptionsQuote {
+  volume?: number;
+}
 
 function is0DTE(expiry: string): boolean {
   if (!expiry) return false;
@@ -31,19 +32,22 @@ function spreadCents(quote: OptionsQuote): number {
 /**
  * Generate trade signal from options quote. Returns null if no signal.
  */
-export function generateSignal(quote: OptionsQuote): TradeSignal | null {
+export function generateSignal(quote: OptionsQuote | OptionsQuoteExtended): TradeSignal | null {
+  const cfg = getSignalConfig();
   if (!is0DTE(quote.expiry)) return null;
 
   const spread = spreadCents(quote);
-  if (spread > MAX_SPREAD_CENTS) return null;
+  if (spread > cfg.maxSpreadCents) return null;
 
   const mid = quote.mid ?? (quote.bid + quote.ask) / 2;
   const midCents = Math.round(mid * 100);
-  if (midCents < MIN_MID_CENTS) return null;
+  if (midCents < cfg.minMidCents) return null;
 
-  // Simple momentum: bid > ask pressure implies BUY (simplified)
+  const ext = quote as OptionsQuoteExtended;
+  if (ext.volume != null && ext.volume < cfg.minVolume) return null;
+
   const side: "BUY" | "SELL" = quote.bid >= quote.ask ? "BUY" : "SELL";
-  const contracts = Math.min(1, MAX_CONTRACTS);
+  const contracts = Math.min(Math.max(1, Math.floor(mid * 100 * cfg.positionSizePct)), cfg.maxContracts);
 
   return {
     side,
