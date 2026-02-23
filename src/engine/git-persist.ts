@@ -20,7 +20,12 @@ export function persistToGit(): void {
 
     const msg = `chore: persist db.json [${new Date().toISOString().slice(0, 19)}]`;
     execSync(`git commit -m "${msg}"`, { cwd });
+
+    if (process.env.GIT_PERSIST_PUSH === "1") {
+      const branch = execSync("git rev-parse --abbrev-ref HEAD", { cwd }).toString().trim();
+      execSync(`git push -u origin ${branch}`, { cwd });
+    }
   } catch {
-    // ignore: not a git repo, no changes, or push failed
+    // ignore: not a git repo, no changes, push failed, or auth
   }
 }
