@@ -3,6 +3,12 @@
  * Parses raw payloads from sniffer into structured SPY/QQQ 0DTE options data.
  * Webull uses MQTT+protobuf; we also handle JSON/NDJSON for decrypted or mock data.
  */
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export interface OptionsQuote {
   symbol: string;
   strike: number;
@@ -14,7 +20,13 @@ export interface OptionsQuote {
 }
 
 const SPY_QQQ_PATTERN = /(?:SPY|QQQ)/i;
-const NUMERIC_FIELDS = ["bid", "ask", "strike", "close", "last", "volume"];
+const WEBULL_FIELD_MAP: Record<string, string[]> = {
+  symbol: ["symbol", "ticker", "name", "tickerId"],
+  bid: ["bid", "bidPrice", "b"],
+  ask: ["ask", "askPrice", "a"],
+  strike: ["strike", "strikePrice", "strikePrice", "k"],
+  expiry: ["expiry", "expiration", "exp", "expireDate"],
+};
 
 function tryParseJson(buf: Buffer): unknown | null {
   try {
@@ -25,12 +37,14 @@ function tryParseJson(buf: Buffer): unknown | null {
   }
 }
 
-function extractNumeric(obj: Record<string, unknown>, key: string): number | undefined {
-  const v = obj[key];
-  if (typeof v === "number" && !Number.isNaN(v)) return v;
-  if (typeof v === "string") {
-    const n = parseFloat(v);
-    return Number.isNaN(n) ? undefined : n;
+function extractNumeric(obj: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "number" && !Number.isNaN(v)) return v;
+    if (typeof v === "string") {
+      const n = parseFloat(v);
+      if (!Number.isNaN(n)) return n;
+    }
   }
   return undefined;
 }
@@ -42,15 +56,15 @@ function extractOptionsFromObject(obj: unknown): OptionsQuote | null {
   const symbol = (o.symbol ?? o.ticker ?? o.name ?? "") as string;
   if (!SPY_QQQ_PATTERN.test(symbol)) return null;
 
-  const bid = extractNumeric(o, "bid") ?? extractNumeric(o, "bidPrice");
-  const ask = extractNumeric(o, "ask") ?? extractNumeric(o, "askPrice");
-  const strike = extractNumeric(o, "strike") ?? extractNumeric(o, "strikePrice");
+  const bid = extractNumeric(o, WEBULL_FIELD_MAP.bid);
+  const ask = extractNumeric(o, WEBULL_FIELD_MAP.ask);
+  const strike = extractNumeric(o, WEBULL_FIELD_MAP.strike);
   const expiry = (o.expiry ?? o.expiration ?? o.exp ?? "") as string;
 
   if (bid == null && ask == null) return null;
 
   const mid = bid != null && ask != null ? (bid + ask) / 2 : (bid ?? ask ?? 0);
-  const timestamp = extractNumeric(o, "timestamp") ?? extractNumeric(o, "time") ?? Date.now();
+  const timestamp = extractNumeric(o, ["timestamp", "time"]) ?? Date.now();
 
   return {
     symbol: symbol.toUpperCase().startsWith("SPY") ? "SPY" : "QQQ",
@@ -78,6 +92,22 @@ function extractJsonFragments(buf: Buffer): unknown[] {
   return results;
 }
 
+function isLikelyProtobuf(buf: Buffer): boolean {
+  if (buf.length < 4) return false;
+  return buf.some((b) => b > 127);
+}
+
+function captureRaw(payload: Buffer): void {
+  if (process.env.CAPTURE_RAW !== "1") return;
+  try {
+    const dir = path.join(__dirname, "../../data/raw-capture");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `raw-${Date.now()}.bin`), payload);
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Parse raw payload into OptionsQuote(s). Returns empty array if unparseable.
  */
@@ -102,6 +132,10 @@ export function parsePayload(payload: Buffer): OptionsQuote[] {
       const q = extractOptionsFromObject(obj);
       if (q) results.push(q);
     }
+  }
+
+  if (results.length === 0 && (isLikelyProtobuf(payload) || payload.length > 20)) {
+    captureRaw(payload);
   }
 
   return results;
