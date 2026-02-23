@@ -44,7 +44,9 @@ async function main() {
       const signal = generateSignal(q);
       if (signal) {
         recordSignal(rec);
-        void onTradeSignal(engine, signal, rec);
+        void onTradeSignal(engine, signal, rec).catch((err) =>
+          logger.error(`Trade signal error: ${err}`)
+        );
       }
     }
   });
@@ -77,6 +79,11 @@ async function onTradeSignal(
   const paperTrading = process.env.PAPER_TRADING === "1";
   const execCfg = getExecutionConfig();
   const ok = paperTrading || executeClickWithRetry(execCfg.retries, execCfg.retryDelayMs);
+  if (!ok && !paperTrading) {
+    fireAlert("EXECUTION_FAILED", { payload, reason: "executeClickWithRetry returned false" });
+    logger.warn("Execution failed after audit approval");
+    return;
+  }
   if (ok) {
     if (!paperTrading) recordExecuted(rec);
     engine.applyFriction(signal.contracts);

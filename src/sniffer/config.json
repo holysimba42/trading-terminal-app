@@ -2,7 +2,8 @@
   "webull_hosts": [
     "api.webull.com",
     "data-api.webull.com",
-    "events-api.webull.com"
+    "events-api.webull.com",
+    "usquotes-api.webullfintech.com"
   ],
   "fallback_filter": "tcp port 443 or tcp port 8883",
   "interface": null,

@@ -44,6 +44,10 @@ export function startSocketBridge(onPayload: PayloadCallback): net.Server {
     });
   });
 
+  server.on("error", (err) => {
+    console.error("[SocketBridge] Error:", err.message);
+  });
+
   if (isWindows) {
     server.listen(TCP_PORT, TCP_HOST, () => {
       console.log(`[SocketBridge] Listening on ${TCP_HOST}:${TCP_PORT} (TCP)`);

@@ -88,6 +88,10 @@ export function startMonitor() {
     res.end("Not Found");
   });
 
+  server.on("error", (err) => {
+    console.error("[Monitor] Error:", err.message);
+  });
+
   server.listen(PORT, () => {
     console.log(`[Monitor] http://127.0.0.1:${PORT}/api/status`);
   });
