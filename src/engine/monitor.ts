@@ -92,8 +92,8 @@ export function startMonitor() {
     console.error("[Monitor] Error:", err.message);
   });
 
-  server.listen(PORT, () => {
-    console.log(`[Monitor] http://127.0.0.1:${PORT}/api/status`);
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`[Monitor] http://127.0.0.1:${PORT}/api/status (also http://0.0.0.0:${PORT})`);
   });
 
   return server;
