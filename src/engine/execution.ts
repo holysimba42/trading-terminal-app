@@ -14,7 +14,7 @@ let kernel: { executeClick: (x?: number, y?: number) => boolean } | null = null;
 function loadKernel() {
   if (kernel) return kernel;
   try {
-    const addonPath = path.join(__dirname, "../kernel/build/Release/webull_ghost.node");
+    const addonPath = path.join(process.cwd(), "src/kernel/build/Release/webull_ghost.node");
     kernel = require(addonPath);
     return kernel;
   } catch {

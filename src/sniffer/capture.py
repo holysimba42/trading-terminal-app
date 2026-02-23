@@ -44,12 +44,13 @@ def resolve_webull_ips(hosts: list[str]) -> list[str]:
     return list(ips)
 
 
-def build_bpf_filter(ips: list[str], port: int, fallback: str) -> str:
+def build_bpf_filter(ips: list[str], ports: list[int], fallback: str) -> str:
     """Build BPF filter isolating Webull data server routes."""
     if not ips:
         return fallback
+    port_clauses = " or ".join(f"tcp port {p}" for p in ports)
     host_clauses = " or ".join(f"host {ip}" for ip in ips)
-    return f"tcp port {port} and ({host_clauses})"
+    return f"({port_clauses}) and ({host_clauses})"
 
 
 def forward_to_engine(payload: bytes, config: dict) -> None:
@@ -95,11 +96,13 @@ def main() -> None:
 
     config = load_config()
     hosts = config.get("webull_hosts", [])
-    port = config.get("target_port", 443)
-    fallback = config.get("fallback_filter", "tcp port 443")
+    ports = config.get("target_ports") or [config.get("target_port", 443)]
+    if isinstance(ports, int):
+        ports = [ports]
+    fallback = config.get("fallback_filter", "tcp port 443 or tcp port 8883")
 
     ips = resolve_webull_ips(hosts)
-    bpf = build_bpf_filter(ips, port, fallback)
+    bpf = build_bpf_filter(ips, ports, fallback)
 
     if ips:
         print(f"Webull IPs isolated: {', '.join(ips)}")

@@ -32,13 +32,15 @@ export async function validateStartup(): Promise<StartupResult> {
     }
   }
 
-  if (!addonPath && process.env.MOCK_EXECUTION !== "1") {
-    errors.push("kernel addon not built (run npm run rebuild)");
-  } else if (addonPath) {
-    try {
-      require(addonPath);
-    } catch {
-      errors.push("kernel addon load failed");
+  if (process.env.MOCK_EXECUTION !== "1" && process.env.PAPER_TRADING !== "1") {
+    if (!fs.existsSync(addonPath)) {
+      errors.push("kernel addon not built (run npm run rebuild)");
+    } else {
+      try {
+        require(addonPath);
+      } catch {
+        errors.push("kernel addon load failed");
+      }
     }
   }
 

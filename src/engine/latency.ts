@@ -2,6 +2,12 @@
  * HFT Cash v6 - Latency Instrumentation
  * Measures pipeline stages: receive → parse → signal → audit → execute.
  */
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export interface LatencyRecord {
   receivedAt: number;
   parsedAt?: number;
@@ -9,8 +15,18 @@ export interface LatencyRecord {
   executedAt?: number;
 }
 
-const TARGET_DATA_MS = 10;
-const TARGET_EXEC_MS = 5;
+function loadLatencyConfig(): { targetDataMs: number; targetExecMs: number } {
+  try {
+    const raw = fs.readFileSync(path.join(__dirname, "../../config.json"), "utf8");
+    const c = JSON.parse(raw);
+    return {
+      targetDataMs: c.latency?.targetDataMs ?? 10,
+      targetExecMs: c.latency?.targetExecMs ?? 5,
+    };
+  } catch {
+    return { targetDataMs: 10, targetExecMs: 5 };
+  }
+}
 
 export function createLatencyRecord(): LatencyRecord {
   return { receivedAt: Date.now() };
@@ -38,8 +54,9 @@ export function execLatencyMs(rec: LatencyRecord): number {
 }
 
 export function isWithinTargets(rec: LatencyRecord): { data: boolean; exec: boolean } {
+  const cfg = loadLatencyConfig();
   return {
-    data: dataLatencyMs(rec) < TARGET_DATA_MS,
-    exec: rec.executedAt ? execLatencyMs(rec) < TARGET_EXEC_MS : true,
+    data: dataLatencyMs(rec) < cfg.targetDataMs,
+    exec: rec.executedAt ? execLatencyMs(rec) < cfg.targetExecMs : true,
   };
 }

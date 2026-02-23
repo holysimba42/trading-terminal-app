@@ -7,7 +7,7 @@ import http from "http";
 
 export function fireAlert(alert: string, payload: Record<string, unknown>): void {
   const url = process.env.ALERT_WEBHOOK_URL;
-  if (!url || alert === "OK") return;
+  if (!url) return;
 
   const body = JSON.stringify({
     alert,

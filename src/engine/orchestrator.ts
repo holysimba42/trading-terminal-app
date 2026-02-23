@@ -19,6 +19,7 @@ import {
   isWithinTargets,
 } from "./latency.js";
 import { validateStartup } from "./startup.js";
+import { fireAlert } from "./alerts.js";
 
 async function main() {
   const startup = await validateStartup();
@@ -64,8 +65,13 @@ async function onTradeSignal(
   rec: import("./latency.js").LatencyRecord
 ) {
   const payload = { contracts: signal.contracts, side: signal.side, symbol: signal.symbol };
-  const { result } = engine.performAuditWithLog(payload);
-  if (result !== "YES") return;
+  const { result, reason } = engine.performAuditWithLog(payload);
+  if (result !== "YES") {
+    if (reason === "daily_trade_cap" || reason === "max_drawdown") {
+      fireAlert("AUDIT_REJECT", { reason, payload });
+    }
+    return;
+  }
 
   const paperTrading = process.env.PAPER_TRADING === "1";
   const ok = paperTrading || executeClickWithRetry(3, 50);

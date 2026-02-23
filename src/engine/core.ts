@@ -79,6 +79,7 @@ export interface SovereignEngine {
   performAudit: (trade: TradePayload) => AuditResult;
   performAuditWithLog: (trade: TradePayload) => { result: AuditResult; reason?: string };
   applyFriction: (contracts: number) => void;
+  addPendingT1: (amount: number) => void;
   settleT1: () => void;
   resetDailyTrades: () => void;
   recordTrade: (contracts: number) => void;
@@ -176,6 +177,9 @@ export async function initializeSovereignEngine(): Promise<SovereignEngine> {
       return { result, reason };
     },
     applyFriction: (contracts: number) => applyFriction(db, contracts),
+    addPendingT1: (amount: number) => {
+      db.data.account.pending_t1_funds += amount;
+    },
     settleT1: () => settleT1(db),
     resetDailyTrades: () => resetDailyTrades(db),
     recordTrade: (contracts: number) => {
