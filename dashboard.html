@@ -14,9 +14,10 @@
         <p class="text-slate-400">Status: <span id="alert" class="font-mono">--</span></p>
       </div>
       <div class="flex items-center gap-3">
-        <button id="testTradeBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-medium text-sm transition-colors" title="Injects payload into socket bridge (same path as sniffer). Requires orchestrator (npm start) running.">
+        <button id="testTradeBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-medium text-sm transition-colors" title="Requires orchestrator running in another terminal: npm start">
           Submit Test Trade
         </button>
+        <span class="text-slate-500 text-xs">(run <code class="bg-slate-700 px-1 rounded">npm start</code> in another terminal)</span>
         <span id="testTradeMsg" class="text-sm text-slate-500"></span>
       </div>
     </header>

@@ -48,8 +48,12 @@ export function injectPayload(payload: Buffer): Promise<{ ok: boolean; error?: s
           });
         });
 
-    client.on("error", (err) => {
-      resolve({ ok: false, error: err.message });
+    client.on("error", (err: NodeJS.ErrnoException) => {
+      const msg =
+        err.code === "ECONNREFUSED" || err.code === "ENOENT"
+          ? "Orchestrator not running. Start it in another terminal: npm start"
+          : err.message;
+      resolve({ ok: false, error: msg });
     });
   });
 }

@@ -1,21 +1,33 @@
 {
   "account": {
-    "starting_capital": 300.00,
-    "settled_funds": 300.00,
-    "pending_t1_funds": 0.00,
+    "starting_capital": 300,
+    "settled_funds": 299.86,
+    "pending_t1_funds": 0,
     "max_drawdown_limit": 0.5586
   },
   "operational_limits": {
     "daily_trade_cap": 10,
-    "trades_executed_today": 0,
+    "trades_executed_today": 1,
     "max_contracts_per_order": 100,
     "friction_spread": 0.05,
     "friction_slippage": 0.02,
-    "commission": 0.00
+    "commission": 0
   },
   "metrics": {
     "target_win_rate": 0.8467,
-    "equity_curve": []
+    "equity_curve": [
+      299.86
+    ]
   },
-  "audit_trail": []
+  "audit_trail": [
+    {
+      "ts": "2026-02-24T07:40:37.308Z",
+      "payload": {
+        "contracts": 2,
+        "side": "SELL",
+        "symbol": "SPY"
+      },
+      "result": "YES"
+    }
+  ]
 }
