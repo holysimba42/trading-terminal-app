@@ -2,10 +2,9 @@
 /**
  * Start monitor and open dashboard in browser.
  * Run from project root: npm run dashboard
- * Requires: npm run build first (or run from project with dist/)
+ * Stops any existing dashboard processes first (priority rule).
  */
-import { spawn } from "child_process";
-import { exec } from "child_process";
+import { spawn, exec, execSync } from "child_process";
 import path from "path";
 import fs from "fs";
 import http from "http";
@@ -57,6 +56,17 @@ if (!fs.existsSync(monitorPath)) {
   console.error("Run 'npm run build' first.");
   process.exit(1);
 }
+
+// Priority: stop existing dashboard before starting (avoids EADDRINUSE)
+try {
+  execSync("node scripts/stop-dashboard.js", {
+    cwd: PROJECT_ROOT,
+    stdio: "inherit",
+  });
+} catch {
+  /* ignore */
+}
+await new Promise((r) => setTimeout(r, 500));
 
 const monitor = spawn("node", ["dist/engine/monitor.js"], {
   cwd: PROJECT_ROOT,

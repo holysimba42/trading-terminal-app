@@ -15,6 +15,7 @@
     "backtest": "node dist/engine/backtest.js",
     "generate-historical": "npm run build && node dist/engine/generate-historical-equity.js",
     "monitor": "node dist/engine/monitor.js",
+    "dashboard:stop": "node scripts/stop-dashboard.js",
     "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop hft-cash-v6 hft-cash-v6-monitor",
     "test": "npm run e2e && npm run simulate",
