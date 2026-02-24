@@ -16,7 +16,8 @@
     "monitor": "node dist/engine/monitor.js",
     "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop hft-cash-v6 hft-cash-v6-monitor",
-    "test": "npm run e2e && npm run simulate"
+    "test": "npm run e2e && npm run simulate",
+    "dashboard": "npm run build && node scripts/start-dashboard.js"
   },
   "dependencies": {
     "lowdb": "^7.0.1",

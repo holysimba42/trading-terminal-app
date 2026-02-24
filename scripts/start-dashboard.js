@@ -1,0 +1,45 @@
+#!/usr/bin/env node
+/**
+ * Start monitor and open dashboard in browser.
+ * Run from project root: npm run dashboard
+ * Requires: npm run build first (or run from project with dist/)
+ */
+import { spawn } from "child_process";
+import { exec } from "child_process";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.join(__dirname, "..");
+const PORT = 31338;
+const URL = `http://127.0.0.1:${PORT}/`;
+
+function openBrowser() {
+  const cmd =
+    process.platform === "win32"
+      ? `start "" "${URL}"`
+      : process.platform === "darwin"
+        ? `open "${URL}"`
+        : `xdg-open "${URL}"`;
+  exec(cmd, () => {});
+}
+
+const monitorPath = path.join(PROJECT_ROOT, "dist/engine/monitor.js");
+if (!fs.existsSync(monitorPath)) {
+  console.error("Run 'npm run build' first.");
+  process.exit(1);
+}
+
+const monitor = spawn("node", ["dist/engine/monitor.js"], {
+  cwd: PROJECT_ROOT,
+  stdio: "inherit",
+});
+
+monitor.on("error", (err) => {
+  console.error("Failed to start monitor:", err);
+  process.exit(1);
+});
+
+setTimeout(openBrowser, 2000);
+console.log("Dashboard:", URL);
