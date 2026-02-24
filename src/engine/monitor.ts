@@ -8,6 +8,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { fireAlert } from "./alerts.js";
 import { buildTestPayload, injectPayload } from "./inject-payload.js";
+import { fetchRealQuote } from "./fetch-real-options.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.MONITOR_PORT) || 31338;
@@ -118,6 +119,64 @@ export function startMonitor() {
       }
       res.statusCode = 200;
       res.end(JSON.stringify({ ok: true, verified: true }));
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/test-trade-real") {
+      res.setHeader("Content-Type", "application/json");
+      const dbBefore = loadDb();
+      const tradesBefore = (dbBefore.operational_limits as Record<string, number>)?.trades_executed_today ?? 0;
+
+      let realData: Awaited<ReturnType<typeof fetchRealQuote>>;
+      try {
+        realData = await fetchRealQuote();
+      } catch (err) {
+        res.statusCode = 503;
+        res.end(
+          JSON.stringify({
+            ok: false,
+            error: `Fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+          })
+        );
+        return;
+      }
+
+      if (!realData) {
+        res.statusCode = 200;
+        res.end(
+          JSON.stringify({
+            ok: false,
+            error: "No 0DTE SPY/QQQ option with valid bid/ask found. Try during market hours.",
+          })
+        );
+        return;
+      }
+
+      const result = await injectPayload(realData.payload);
+      if (!result.ok) {
+        res.statusCode = 503;
+        res.end(JSON.stringify(result));
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+      const dbAfter = loadDb();
+      const tradesAfter = (dbAfter.operational_limits as Record<string, number>)?.trades_executed_today ?? 0;
+      const verified = tradesAfter > tradesBefore;
+      if (!verified) {
+        res.statusCode = 200;
+        res.end(
+          JSON.stringify({
+            ok: true,
+            verified: false,
+            source: realData.source,
+            error:
+              "Payload sent but db not updated. Run orchestrator from the SAME project folder: npm start.",
+          })
+        );
+        return;
+      }
+      res.statusCode = 200;
+      res.end(JSON.stringify({ ok: true, verified: true, source: realData.source }));
       return;
     }
 

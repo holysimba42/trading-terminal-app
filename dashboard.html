@@ -13,9 +13,12 @@
         <h1 class="text-3xl font-bold text-blue-400">HFT Cash v6 Dashboard</h1>
         <p class="text-slate-400">Status: <span id="alert" class="font-mono">--</span></p>
       </div>
-      <div class="flex items-center gap-3">
-        <button id="testTradeBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-medium text-sm transition-colors" title="Requires orchestrator running in another terminal: npm start">
+      <div class="flex flex-wrap items-center gap-3">
+        <button id="testTradeBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-medium text-sm transition-colors" title="Synthetic payload">
           Submit Test Trade
+        </button>
+        <button id="realTradeBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium text-sm transition-colors" title="Real SPY/QQQ 0DTE from Yahoo Finance">
+          Operational Test (Real Data)
         </button>
         <span class="text-slate-500 text-xs">(run <code class="bg-slate-700 px-1 rounded">npm start</code> in another terminal)</span>
         <span id="testTradeMsg" class="text-sm text-slate-500"></span>
@@ -138,19 +141,20 @@
       }
     }
 
-    document.getElementById('testTradeBtn').addEventListener('click', async () => {
+    async function runTestTrade(endpoint) {
       const btn = document.getElementById('testTradeBtn');
+      const realBtn = document.getElementById('realTradeBtn');
       const msg = document.getElementById('testTradeMsg');
-      btn.disabled = true;
-      msg.textContent = 'Sending...';
+      [btn, realBtn].forEach(b => b && (b.disabled = true));
+      msg.textContent = endpoint.includes('real') ? 'Fetching real data...' : 'Sending...';
       msg.className = 'text-sm text-slate-400';
       try {
         const base = window.location.origin || 'http://127.0.0.1:31338';
-        const r = await fetch(base + '/api/test-trade', { method: 'POST' });
+        const r = await fetch(base + endpoint, { method: 'POST' });
         const d = await r.json();
         if (d.ok) {
           if (d.verified) {
-            msg.textContent = 'Trade recorded — check Audit Trail';
+            msg.textContent = (d.source ? d.source + ' — ' : '') + 'Trade recorded';
             msg.className = 'text-sm text-emerald-400';
             setTimeout(fetchStatus, 500);
           } else {
@@ -165,8 +169,10 @@
         msg.textContent = 'Request failed';
         msg.className = 'text-sm text-red-400';
       }
-      btn.disabled = false;
-    });
+      [btn, realBtn].forEach(b => b && (b.disabled = false));
+    }
+    document.getElementById('testTradeBtn').addEventListener('click', () => runTestTrade('/api/test-trade'));
+    document.getElementById('realTradeBtn').addEventListener('click', () => runTestTrade('/api/test-trade-real'));
 
     fetchStatus();
     setInterval(fetchStatus, 2000);
