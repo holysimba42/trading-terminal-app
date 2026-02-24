@@ -8,6 +8,7 @@ import { spawn } from "child_process";
 import { exec } from "child_process";
 import path from "path";
 import fs from "fs";
+import http from "http";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -25,6 +26,32 @@ function openBrowser() {
   exec(cmd, () => {});
 }
 
+function waitForReady() {
+  return new Promise((resolve) => {
+    const deadline = Date.now() + 5000;
+    const check = () => {
+      const req = http.get(`${URL}health`, (res) => {
+        if (res.statusCode === 200) {
+          resolve(true);
+          return;
+        }
+        if (Date.now() < deadline) setTimeout(check, 200);
+        else resolve(false);
+      });
+      req.on("error", () => {
+        if (Date.now() < deadline) setTimeout(check, 200);
+        else resolve(false);
+      });
+      req.setTimeout(500, () => {
+        req.destroy();
+        if (Date.now() < deadline) setTimeout(check, 200);
+        else resolve(false);
+      });
+    };
+    check();
+  });
+}
+
 const monitorPath = path.join(PROJECT_ROOT, "dist/engine/monitor.js");
 if (!fs.existsSync(monitorPath)) {
   console.error("Run 'npm run build' first.");
@@ -36,10 +63,29 @@ const monitor = spawn("node", ["dist/engine/monitor.js"], {
   stdio: "inherit",
 });
 
+let monitorExited = false;
 monitor.on("error", (err) => {
   console.error("Failed to start monitor:", err);
   process.exit(1);
 });
+monitor.on("exit", (code) => {
+  monitorExited = true;
+  if (code !== 0 && code !== null) {
+    console.error("Monitor exited with code", code, "- port may be in use.");
+  }
+});
 
-setTimeout(openBrowser, 2000);
-console.log("Dashboard:", URL);
+(async () => {
+  const ready = await waitForReady();
+  if (ready) {
+    openBrowser();
+    console.log("Dashboard:", URL);
+  } else if (monitorExited) {
+    openBrowser();
+    console.log("Dashboard:", URL);
+    console.log("(Monitor may have failed; if page does not load, try: pkill -f 'node dist/engine/monitor')");
+  } else {
+    openBrowser();
+    console.log("Dashboard:", URL);
+  }
+})();
