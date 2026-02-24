@@ -7,6 +7,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { fireAlert } from "./alerts.js";
+import { buildTestPayload, injectPayload } from "./inject-payload.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.MONITOR_PORT) || 31338;
@@ -27,7 +28,7 @@ function loadDb(): Record<string, unknown> {
 }
 
 export function startMonitor() {
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     if (req.url === "/health" || req.url === "/api/health") {
       res.setHeader("Content-Type", "application/json");
@@ -85,6 +86,15 @@ export function startMonitor() {
           historical_equity: historical_equity,
         })
       );
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/test-trade") {
+      res.setHeader("Content-Type", "application/json");
+      const payload = buildTestPayload();
+      const result = await injectPayload(payload);
+      res.statusCode = result.ok ? 200 : 503;
+      res.end(JSON.stringify(result));
       return;
     }
 

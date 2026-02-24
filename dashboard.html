@@ -8,9 +8,17 @@
 </head>
 <body class="bg-slate-900 text-white p-8">
   <div class="max-w-6xl mx-auto">
-    <header class="mb-8 border-b border-slate-700 pb-4">
-      <h1 class="text-3xl font-bold text-blue-400">HFT Cash v6 Dashboard</h1>
-      <p class="text-slate-400">Status: <span id="alert" class="font-mono">--</span></p>
+    <header class="mb-8 border-b border-slate-700 pb-4 flex flex-wrap justify-between items-center gap-4">
+      <div>
+        <h1 class="text-3xl font-bold text-blue-400">HFT Cash v6 Dashboard</h1>
+        <p class="text-slate-400">Status: <span id="alert" class="font-mono">--</span></p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="testTradeBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-medium text-sm transition-colors" title="Injects payload into socket bridge (same path as sniffer). Requires orchestrator (npm start) running.">
+          Submit Test Trade
+        </button>
+        <span id="testTradeMsg" class="text-sm text-slate-500"></span>
+      </div>
     </header>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -128,6 +136,31 @@
         document.getElementById('alert').className = 'text-red-400 font-mono';
       }
     }
+
+    document.getElementById('testTradeBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('testTradeBtn');
+      const msg = document.getElementById('testTradeMsg');
+      btn.disabled = true;
+      msg.textContent = 'Sending...';
+      msg.className = 'text-sm text-slate-400';
+      try {
+        const base = window.location.origin || 'http://127.0.0.1:31338';
+        const r = await fetch(base + '/api/test-trade', { method: 'POST' });
+        const d = await r.json();
+        if (d.ok) {
+          msg.textContent = 'Payload sent — check Audit Trail';
+          msg.className = 'text-sm text-emerald-400';
+          setTimeout(fetchStatus, 500);
+        } else {
+          msg.textContent = d.error || 'Failed (orchestrator must be running)';
+          msg.className = 'text-sm text-amber-400';
+        }
+      } catch (e) {
+        msg.textContent = 'Request failed';
+        msg.className = 'text-sm text-red-400';
+      }
+      btn.disabled = false;
+    });
 
     fetchStatus();
     setInterval(fetchStatus, 2000);
