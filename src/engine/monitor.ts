@@ -91,10 +91,33 @@ export function startMonitor() {
 
     if (req.method === "POST" && req.url === "/api/test-trade") {
       res.setHeader("Content-Type", "application/json");
+      const dbBefore = loadDb();
+      const tradesBefore = (dbBefore.operational_limits as Record<string, number>)?.trades_executed_today ?? 0;
       const payload = buildTestPayload();
       const result = await injectPayload(payload);
-      res.statusCode = result.ok ? 200 : 503;
-      res.end(JSON.stringify(result));
+      if (!result.ok) {
+        res.statusCode = 503;
+        res.end(JSON.stringify(result));
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+      const dbAfter = loadDb();
+      const tradesAfter = (dbAfter.operational_limits as Record<string, number>)?.trades_executed_today ?? 0;
+      const verified = tradesAfter > tradesBefore;
+      if (!verified) {
+        res.statusCode = 200;
+        res.end(
+          JSON.stringify({
+            ok: true,
+            verified: false,
+            error:
+              "Payload sent but db not updated. Run orchestrator from the SAME project folder: cd to project, then npm start.",
+          })
+        );
+        return;
+      }
+      res.statusCode = 200;
+      res.end(JSON.stringify({ ok: true, verified: true }));
       return;
     }
 

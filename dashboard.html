@@ -149,9 +149,14 @@
         const r = await fetch(base + '/api/test-trade', { method: 'POST' });
         const d = await r.json();
         if (d.ok) {
-          msg.textContent = 'Payload sent — check Audit Trail';
-          msg.className = 'text-sm text-emerald-400';
-          setTimeout(fetchStatus, 500);
+          if (d.verified) {
+            msg.textContent = 'Trade recorded — check Audit Trail';
+            msg.className = 'text-sm text-emerald-400';
+            setTimeout(fetchStatus, 500);
+          } else {
+            msg.textContent = d.error || 'Payload sent but db not updated';
+            msg.className = 'text-sm text-amber-400';
+          }
         } else {
           msg.textContent = d.error || 'Failed (orchestrator must be running)';
           msg.className = 'text-sm text-amber-400';

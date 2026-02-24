@@ -34,15 +34,20 @@ async function main() {
 
   const server = startSocketBridge((payload) => {
     if (payload.length === 0) return;
+    logger.info(`[Orchestrator] Received payload (${payload.length} bytes)`);
     const rec = createLatencyRecord();
     const quotes = parsePayload(payload);
     recordParse(rec);
+    if (quotes.length === 0) {
+      logger.warn("[Orchestrator] Parser returned no quotes (payload may be unparseable)");
+    }
     for (const q of quotes) {
       if (process.env.DEBUG) {
         console.log("[Orchestrator] Parsed:", q.symbol, q.strike, "bid:", q.bid, "ask:", q.ask);
       }
       const signal = generateSignal(q);
       if (signal) {
+        logger.info(`[Orchestrator] Signal: ${signal.side} ${signal.contracts} ${signal.symbol}`);
         recordSignal(rec);
         void onTradeSignal(engine, signal, rec).catch((err) =>
           logger.error(`Trade signal error: ${err}`)
@@ -89,6 +94,7 @@ async function onTradeSignal(
     engine.applyFriction(signal.contracts);
     engine.recordTrade(signal.contracts);
     await engine.persist();
+    logger.info(`[Orchestrator] Trade recorded: ${signal.contracts} ${signal.side} ${signal.symbol}`);
     if (!paperTrading) persistToGit();
     const { data, exec } = isWithinTargets(rec);
     if (process.env.DEBUG) {
