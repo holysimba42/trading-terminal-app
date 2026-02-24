@@ -23,19 +23,30 @@
         </div>
       </div>
       <div class="md:col-span-2 bg-slate-800 p-6 rounded-xl border border-slate-700">
+        <p id="equityEmptyState" class="text-slate-500 text-sm mb-2 hidden">No trades yet — showing initial capital</p>
         <canvas id="equityChart" height="120"></canvas>
       </div>
     </div>
 
-    <div class="mt-8 bg-black p-6 rounded-xl font-mono text-sm border border-slate-700">
+    <div class="mt-6 bg-slate-800 p-6 rounded-xl border border-slate-700">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="text-blue-400">Historical Equity (1Y)</h3>
+        <span id="historicalNetProfit" class="text-slate-400 text-sm hidden"></span>
+      </div>
+      <p id="historicalEmptyState" class="text-slate-500 text-sm mb-2">Run <code class="bg-slate-700 px-1 rounded">npm run generate-historical</code> to create</p>
+      <canvas id="historicalChart" height="120"></canvas>
+    </div>
+
+    <div class="mt-8 bg-slate-800 p-6 rounded-xl font-mono text-sm border border-slate-700">
       <h3 class="text-blue-400 mb-4">Audit Trail (last 20)</h3>
-      <div id="audit" class="space-y-1"></div>
+      <div id="audit" class="space-y-1 text-slate-300"></div>
     </div>
   </div>
 
   <script>
     const API = (window.location.origin || 'http://127.0.0.1:31338') + '/api/status';
     let chart;
+    let historicalChart;
 
     async function fetchStatus() {
       try {
@@ -50,6 +61,12 @@
         alertEl.className = d.alert === 'MAX_DRAWDOWN' ? 'text-red-400 font-mono' : d.alert === 'DAILY_CAP' ? 'text-amber-400 font-mono' : 'text-green-400 font-mono';
 
         const curve = [d.account.starting_capital, ...d.metrics.equity_curve];
+        const equityEmptyEl = document.getElementById('equityEmptyState');
+        if (curve.length <= 1) {
+          equityEmptyEl.classList.remove('hidden');
+        } else {
+          equityEmptyEl.classList.add('hidden');
+        }
         if (chart) chart.data.datasets[0].data = curve;
         else {
           chart = new Chart(document.getElementById('equityChart'), {
@@ -59,10 +76,53 @@
           });
         }
 
+        const hist = d.historical_equity;
+        const histEmptyEl = document.getElementById('historicalEmptyState');
+        const histNetEl = document.getElementById('historicalNetProfit');
+        if (hist?.curve?.length) {
+          histEmptyEl.classList.add('hidden');
+          if (typeof hist.net_profit === 'number') {
+            histNetEl.classList.remove('hidden');
+            histNetEl.textContent = 'Net profit: $' + hist.net_profit.toFixed(2);
+            histNetEl.className = 'text-sm ' + (hist.net_profit >= 0 ? 'text-emerald-400' : 'text-red-400');
+          }
+          const labels = hist.curve.map(p => p.date);
+          const data = hist.curve.map(p => p.equity);
+          if (historicalChart) {
+            historicalChart.data.labels = labels;
+            historicalChart.data.datasets[0].data = data;
+            historicalChart.update('none');
+          } else {
+            historicalChart = new Chart(document.getElementById('historicalChart'), {
+              type: 'line',
+              data: {
+                labels,
+                datasets: [{ label: 'Equity', data, borderColor: '#60a5fa', tension: 0.3, fill: false }]
+              },
+              options: {
+                scales: {
+                  x: { grid: { color: '#334155' }, ticks: { maxTicksLimit: 12 } },
+                  y: { grid: { color: '#334155' } }
+                }
+              }
+            });
+          }
+        } else {
+          histEmptyEl.classList.remove('hidden');
+          histNetEl.classList.add('hidden');
+          if (historicalChart) {
+            historicalChart.destroy();
+            historicalChart = null;
+          }
+        }
+
+        const auditTrail = d.audit_trail || [];
         const auditEl = document.getElementById('audit');
-        auditEl.innerHTML = (d.audit_trail || []).map(a => 
-          `<div><span class="text-slate-500">[${a.ts?.slice(11,19) || ''}]</span> ${a.result} ${a.payload ? JSON.stringify(a.payload) : ''} ${a.reason ? '('+a.reason+')' : ''}</div>`
-        ).join('');
+        auditEl.innerHTML = auditTrail.length
+          ? auditTrail.map(a =>
+              `<div><span class="text-slate-500">[${a.ts?.slice(11,19) || ''}]</span> ${a.result} ${a.payload ? JSON.stringify(a.payload) : ''} ${a.reason ? '('+a.reason+')' : ''}</div>`
+            ).join('')
+          : '<div class="text-slate-500 italic">No events yet — awaiting first signal</div>';
       } catch (e) {
         document.getElementById('alert').textContent = 'OFFLINE';
         document.getElementById('alert').className = 'text-red-400 font-mono';

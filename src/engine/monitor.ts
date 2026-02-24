@@ -11,6 +11,7 @@ import { fireAlert } from "./alerts.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.MONITOR_PORT) || 31338;
 const DB_PATH = path.join(__dirname, "../../data/db.json");
+const HISTORICAL_EQUITY_PATH = path.join(__dirname, "../../data/historical-equity.json");
 
 export function computeDrawdown(settled: number, peak: number): number {
   if (peak <= 0) return 0;
@@ -58,6 +59,19 @@ export function startMonitor() {
         fireAlert(alert, { drawdown, peak, settled_funds: account.settled_funds });
       }
 
+      let historical_equity: { curve: { date: string; equity: number }[]; net_profit?: number } | null = null;
+      try {
+        if (fs.existsSync(HISTORICAL_EQUITY_PATH)) {
+          const raw = JSON.parse(fs.readFileSync(HISTORICAL_EQUITY_PATH, "utf8"));
+          historical_equity = {
+            curve: Array.isArray(raw.curve) ? raw.curve : [],
+            net_profit: typeof raw.net_profit === "number" ? raw.net_profit : undefined,
+          };
+        }
+      } catch {
+        /* ignore */
+      }
+
       res.setHeader("Content-Type", "application/json");
       res.end(
         JSON.stringify({
@@ -68,6 +82,7 @@ export function startMonitor() {
           drawdown,
           peak,
           alert,
+          historical_equity: historical_equity,
         })
       );
       return;
