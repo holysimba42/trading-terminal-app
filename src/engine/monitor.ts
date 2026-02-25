@@ -112,7 +112,7 @@ export function startMonitor() {
             ok: true,
             verified: false,
             error:
-              "Payload sent but db not updated. Run orchestrator from the SAME project folder: cd to project, then npm start.",
+              "Orchestrator not updating db. Ensure: (1) Both run from same folder, (2) Orchestrator started first with: cd project && $env:PAPER_TRADING=\"1\"; npm start",
           })
         );
         return;
@@ -170,7 +170,7 @@ export function startMonitor() {
             verified: false,
             source: realData.source,
             error:
-              "Payload sent but db not updated. Run orchestrator from the SAME project folder: npm start.",
+              "Orchestrator not updating db. Ensure: (1) Both run from same folder, (2) Orchestrator started first with: cd project && $env:PAPER_TRADING=\"1\"; npm start",
           })
         );
         return;
