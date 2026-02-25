@@ -4,6 +4,18 @@
 
 This guide walks through every step to go from a fresh Windows machine to a fully operational live trading system.
 
+## Quick Start (Automated)
+
+For a one-command setup, run from the project root in PowerShell (as Administrator):
+
+```powershell
+.\scripts\Setup-LiveTrading.ps1           # Live trading setup
+.\scripts\Setup-LiveTrading.ps1 -Paper     # Paper trading setup
+.\scripts\Setup-LiveTrading.ps1 -CheckOnly # Validate prerequisites only
+```
+
+This script automates Sections 2–11 below (prerequisite checks, dependency installation, build, .env configuration, pipeline validation, and T+1 scheduling). It reports any remaining manual steps at the end. See the [manual guide below](#1-prerequisites) for details on each step.
+
 ---
 
 ## Table of Contents
