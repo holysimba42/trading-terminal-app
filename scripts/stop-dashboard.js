@@ -11,7 +11,8 @@ const MONITOR_PORT = 31338;
 
 function stopUnix() {
   try {
-    execSync(`pkill -f "node dist/engine/monitor" 2>/dev/null || true`, {
+    execSync(`pkill -f "node dist/engine/monitor" 2>/dev/null || true`, { stdio: "ignore" });
+    execSync(`pkill -f "node dist/engine/dashboard-server" 2>/dev/null || true`, {
       stdio: "ignore",
     });
   } catch {
