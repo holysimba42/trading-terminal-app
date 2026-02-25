@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Start orchestrator (Terminal 1), wait for ready, then start dashboard (Terminal 2).
- * Single command: npm run dashboard:full
+ * Single command: npm run dashboard
  * Ensures orchestrator is running before dashboard so Operational Tests work.
  */
 import { spawn, execSync } from "child_process";
