@@ -1,5 +1,20 @@
 # Permanent Rules
 
+**MANDATORY: Run the Pre-Completion Checklist before finalizing any task.**
+
+---
+
+## Pre-Completion Checklist (run every time before finishing)
+
+- [ ] **Dashboard verified**: `npm run dashboard:stop` → `npm run dashboard` → `curl http://127.0.0.1:31338/health` returns OK → content check passes. If giving a URL to the user, include: `cd <project-path>` first.
+- [ ] **Reasoning stated**: Goal and approach explained before edits.
+- [ ] **Tests before commit**: `npm run build` and `npm run test` pass before committing.
+- [ ] **Conventional commit**: Used `feat:`, `fix:`, `refactor:`, `docs:`, or `chore:` prefix.
+- [ ] **One logical change**: No unrelated edits in the same commit.
+- [ ] **Errors researched**: If an error occurred, searched the web before applying a fix.
+
+---
+
 ## 1. Always verify the dashboard before finishing
 
 Before marking any task complete:
