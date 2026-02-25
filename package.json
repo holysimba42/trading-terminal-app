@@ -1,0 +1,37 @@
+{
+  "name": "hft-cash-v6-webull-bot",
+  "version": "6.0.0",
+  "description": "HFT Cash v6 - SPY/QQQ 0DTE Ghost-Mode Webull Bot. T+1 Cash Settlement, 10 trades/day cap.",
+  "type": "module",
+  "main": "dist/engine/core.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/engine/orchestrator.js",
+    "simulate": "node dist/engine/simulate.js",
+    "rebuild": "node-gyp rebuild --directory src/kernel",
+    "settle-t1": "node dist/engine/settlement.js settle-t1",
+    "reset-daily": "node dist/engine/settlement.js reset-daily",
+    "e2e": "node dist/engine/e2e-test.js",
+    "backtest": "node dist/engine/backtest.js",
+    "generate-historical": "npm run build && node dist/engine/generate-historical-equity.js",
+    "monitor": "node dist/engine/monitor.js",
+    "dashboard:stop": "node scripts/stop-dashboard.js",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:stop": "pm2 stop hft-cash-v6 hft-cash-v6-monitor",
+    "test": "npm run e2e && npm run simulate",
+    "dashboard": "npm run build && node scripts/start-dashboard.js"
+  },
+  "dependencies": {
+    "lowdb": "^7.0.1",
+    "node-addon-api": "^8.0.0",
+    "yahoo-finance2": "^3.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "node-gyp": "^10.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

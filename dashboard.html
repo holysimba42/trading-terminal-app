@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HFT Cash v6 - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-900 text-white p-8">
+  <div class="max-w-6xl mx-auto">
+    <header class="mb-6 border-b border-slate-700 pb-4">
+      <h1 class="text-3xl font-bold text-blue-400">HFT Cash v6 Dashboard</h1>
+      <p class="text-slate-400">Status: <span id="alert" class="font-mono">--</span></p>
+    </header>
+
+    <div class="mb-6 p-4 bg-slate-800 rounded-xl border border-slate-700">
+      <h2 class="text-lg font-semibold text-slate-200 mb-3">Operational Tests</h2>
+      <div class="text-slate-400 text-sm mb-3 space-y-1">
+        <p><strong class="text-slate-300">One command (engine in-process, no separate orchestrator):</strong></p>
+        <p><code class="bg-slate-700 px-1 rounded">cd path\to\trading-terminal-app</code> then <code class="bg-slate-700 px-1 rounded">npm run dashboard</code></p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <button id="testTradeBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-medium text-sm transition-colors" title="Synthetic payload">
+          Submit Test Trade
+        </button>
+        <button id="realTradeBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium text-sm transition-colors" title="Real SPY/QQQ 0DTE from Yahoo Finance">
+          Operational Test (Real Data)
+        </button>
+        <span id="testTradeMsg" class="text-sm text-slate-500"></span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+        <h2 class="text-xl font-semibold mb-4 text-slate-200">Account</h2>
+        <div class="space-y-2">
+          <div class="flex justify-between"><span>Settled:</span><span id="settled" class="text-blue-300">$0</span></div>
+          <div class="flex justify-between"><span>Drawdown:</span><span id="drawdown" class="text-amber-400">0%</span></div>
+          <div class="flex justify-between"><span>Trades Today:</span><span id="trades">0/10</span></div>
+        </div>
+      </div>
+      <div class="md:col-span-2 bg-slate-800 p-6 rounded-xl border border-slate-700">
+        <p id="equityEmptyState" class="text-slate-500 text-sm mb-2 hidden">No trades yet — showing initial capital</p>
+        <canvas id="equityChart" height="120"></canvas>
+      </div>
+    </div>
+
+    <div class="mt-6 bg-slate-800 p-6 rounded-xl border border-slate-700">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="text-blue-400">Historical Equity (1Y)</h3>
+        <span id="historicalNetProfit" class="text-slate-400 text-sm hidden"></span>
+      </div>
+      <p id="historicalEmptyState" class="text-slate-500 text-sm mb-2">Run <code class="bg-slate-700 px-1 rounded">npm run generate-historical</code> to create</p>
+      <canvas id="historicalChart" height="120"></canvas>
+    </div>
+
+    <div class="mt-8 bg-slate-800 p-6 rounded-xl font-mono text-sm border border-slate-700">
+      <h3 class="text-blue-400 mb-4">Audit Trail (last 20)</h3>
+      <div id="audit" class="space-y-1 text-slate-300"></div>
+    </div>
+  </div>
+
+  <script>
+    const API = (window.location.origin || 'http://127.0.0.1:31338') + '/api/status';
+    let chart;
+    let historicalChart;
+
+    async function fetchStatus() {
+      try {
+        const r = await fetch(API);
+        const d = await r.json();
+        document.getElementById('settled').textContent = '$' + d.account.settled_funds.toFixed(2);
+        document.getElementById('drawdown').textContent = (d.drawdown * 100).toFixed(2) + '%';
+        document.getElementById('trades').textContent = d.operational_limits.trades_executed_today + '/' + d.operational_limits.daily_trade_cap;
+
+        const alertEl = document.getElementById('alert');
+        alertEl.textContent = d.alert;
+        alertEl.className = d.alert === 'MAX_DRAWDOWN' ? 'text-red-400 font-mono' : d.alert === 'DAILY_CAP' ? 'text-amber-400 font-mono' : 'text-green-400 font-mono';
+
+        const curve = [d.account.starting_capital, ...d.metrics.equity_curve];
+        const equityEmptyEl = document.getElementById('equityEmptyState');
+        if (curve.length <= 1) {
+          equityEmptyEl.classList.remove('hidden');
+        } else {
+          equityEmptyEl.classList.add('hidden');
+        }
+        if (chart) chart.data.datasets[0].data = curve;
+        else {
+          chart = new Chart(document.getElementById('equityChart'), {
+            type: 'line',
+            data: { labels: curve.map((_, i) => i), datasets: [{ label: 'Equity', data: curve, borderColor: '#4ade80', tension: 0.3 }] },
+            options: { scales: { y: { grid: { color: '#334155' } } } }
+          });
+        }
+
+        const hist = d.historical_equity;
+        const histEmptyEl = document.getElementById('historicalEmptyState');
+        const histNetEl = document.getElementById('historicalNetProfit');
+        if (hist?.curve?.length) {
+          histEmptyEl.classList.add('hidden');
+          if (typeof hist.net_profit === 'number') {
+            histNetEl.classList.remove('hidden');
+            histNetEl.textContent = 'Net profit: $' + hist.net_profit.toFixed(2);
+            histNetEl.className = 'text-sm ' + (hist.net_profit >= 0 ? 'text-emerald-400' : 'text-red-400');
+          }
+          const labels = hist.curve.map(p => p.date);
+          const data = hist.curve.map(p => p.equity);
+          if (historicalChart) {
+            historicalChart.data.labels = labels;
+            historicalChart.data.datasets[0].data = data;
+            historicalChart.update('none');
+          } else {
+            historicalChart = new Chart(document.getElementById('historicalChart'), {
+              type: 'line',
+              data: {
+                labels,
+                datasets: [{ label: 'Equity', data, borderColor: '#60a5fa', tension: 0.3, fill: false }]
+              },
+              options: {
+                scales: {
+                  x: { grid: { color: '#334155' }, ticks: { maxTicksLimit: 12 } },
+                  y: { grid: { color: '#334155' } }
+                }
+              }
+            });
+          }
+        } else {
+          histEmptyEl.classList.remove('hidden');
+          histNetEl.classList.add('hidden');
+          if (historicalChart) {
+            historicalChart.destroy();
+            historicalChart = null;
+          }
+        }
+
+        const auditTrail = d.audit_trail || [];
+        const auditEl = document.getElementById('audit');
+        auditEl.innerHTML = auditTrail.length
+          ? auditTrail.map(a =>
+              `<div><span class="text-slate-500">[${a.ts?.slice(11,19) || ''}]</span> ${a.result} ${a.payload ? JSON.stringify(a.payload) : ''} ${a.reason ? '('+a.reason+')' : ''}</div>`
+            ).join('')
+          : '<div class="text-slate-500 italic">No events yet — awaiting first signal</div>';
+      } catch (e) {
+        document.getElementById('alert').textContent = 'OFFLINE';
+        document.getElementById('alert').className = 'text-red-400 font-mono';
+      }
+    }
+
+    async function runTestTrade(endpoint) {
+      const btn = document.getElementById('testTradeBtn');
+      const realBtn = document.getElementById('realTradeBtn');
+      const msg = document.getElementById('testTradeMsg');
+      [btn, realBtn].forEach(b => b && (b.disabled = true));
+      msg.textContent = endpoint.includes('real') ? 'Fetching real data...' : 'Sending...';
+      msg.className = 'text-sm text-slate-400';
+      try {
+        const base = window.location.origin || 'http://127.0.0.1:31338';
+        const r = await fetch(base + endpoint, { method: 'POST' });
+        const d = await r.json();
+        if (d.ok) {
+          if (d.verified) {
+            msg.textContent = (d.source ? d.source + ' — ' : '') + 'Trade recorded';
+            msg.className = 'text-sm text-emerald-400';
+            setTimeout(fetchStatus, 500);
+          } else {
+            msg.textContent = d.error || 'Payload sent but db not updated';
+            msg.className = 'text-sm text-amber-400';
+          }
+        } else {
+          msg.textContent = d.error || 'Failed (orchestrator must be running)';
+          msg.className = 'text-sm text-amber-400';
+        }
+      } catch (e) {
+        msg.textContent = 'Request failed';
+        msg.className = 'text-sm text-red-400';
+      }
+      [btn, realBtn].forEach(b => b && (b.disabled = false));
+    }
+    document.getElementById('testTradeBtn').addEventListener('click', () => runTestTrade('/api/test-trade'));
+    document.getElementById('realTradeBtn').addEventListener('click', () => runTestTrade('/api/test-trade-real'));
+
+    fetchStatus();
+    setInterval(fetchStatus, 2000);
+  </script>
+</body>
+</html>

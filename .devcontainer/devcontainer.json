@@ -1,0 +1,10 @@
+{
+  "name": "HFT Cash v6",
+  "forwardPorts": [31338],
+  "portsAttributes": {
+    "31338": {
+      "label": "HFT Cash v6 Dashboard",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}

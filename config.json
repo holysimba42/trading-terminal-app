@@ -1,0 +1,17 @@
+{
+  "signal": {
+    "maxSpreadCents": 5,
+    "minMidCents": 10,
+    "minVolume": 0,
+    "maxContracts": 100,
+    "positionSizePct": 0.02
+  },
+  "latency": {
+    "targetDataMs": 10,
+    "targetExecMs": 5
+  },
+  "execution": {
+    "retries": 3,
+    "retryDelayMs": 50
+  }
+}
