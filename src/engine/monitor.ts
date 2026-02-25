@@ -1,19 +1,25 @@
 /**
- * HFT Cash v6 - Monitoring Server & Alerts
- * Serves dashboard API, computes drawdown, emits alerts.
+ * HFT Cash v6 - Unified Monitor (Engine In-Process)
+ * Serves dashboard API. Operational Tests run in-process — no separate orchestrator.
  */
 import http from "http";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { initializeSovereignEngine } from "./core.js";
+import { startSocketBridge } from "./socket-bridge.js";
 import { fireAlert } from "./alerts.js";
-import { buildTestPayload, injectPayload } from "./inject-payload.js";
+import { buildTestPayload } from "./inject-payload.js";
 import { fetchRealQuote } from "./fetch-real-options.js";
+import { processPayloadInProcess } from "./process-payload.js";
+import { logger } from "./logger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.MONITOR_PORT) || 31338;
 const DB_PATH = path.join(__dirname, "../../data/db.json");
 const HISTORICAL_EQUITY_PATH = path.join(__dirname, "../../data/historical-equity.json");
+
+process.env.PAPER_TRADING = process.env.PAPER_TRADING || "1";
 
 export function computeDrawdown(settled: number, peak: number): number {
   if (peak <= 0) return 0;
@@ -28,7 +34,17 @@ function loadDb(): Record<string, unknown> {
   }
 }
 
-export function startMonitor() {
+async function main() {
+  const engine = await initializeSovereignEngine();
+  logger.info(`Engine initialized. Settled funds: ${engine.db.data.account.settled_funds}`);
+
+  startSocketBridge((payload) => {
+    void processPayloadInProcess(engine, payload).catch((err) =>
+      logger.error(`Pipeline error: ${err}`)
+    );
+  });
+  logger.info("Socket bridge active (sniffer).");
+
   const server = http.createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     if (req.url === "/health" || req.url === "/api/health") {
@@ -44,7 +60,6 @@ export function startMonitor() {
       const metrics = (db.metrics || {}) as Record<string, unknown>;
       const equity_curve = (metrics.equity_curve as number[]) || [];
       const audit_trail = (db.audit_trail as unknown[]) || [];
-
       const peak = Math.max(
         account.starting_capital ?? 300,
         ...(equity_curve.length ? [Math.max(...equity_curve)] : [])
@@ -56,11 +71,9 @@ export function startMonitor() {
           : (operational_limits.trades_executed_today ?? 0) >= (operational_limits.daily_trade_cap ?? 10)
             ? "DAILY_CAP"
             : "OK";
-
       if (alert !== "OK") {
         fireAlert(alert, { drawdown, peak, settled_funds: account.settled_funds });
       }
-
       let historical_equity: { curve: { date: string; equity: number }[]; net_profit?: number } | null = null;
       try {
         if (fs.existsSync(HISTORICAL_EQUITY_PATH)) {
@@ -73,7 +86,6 @@ export function startMonitor() {
       } catch {
         /* ignore */
       }
-
       res.setHeader("Content-Type", "application/json");
       res.end(
         JSON.stringify({
@@ -84,7 +96,7 @@ export function startMonitor() {
           drawdown,
           peak,
           alert,
-          historical_equity: historical_equity,
+          historical_equity,
         })
       );
       return;
@@ -92,91 +104,35 @@ export function startMonitor() {
 
     if (req.method === "POST" && req.url === "/api/test-trade") {
       res.setHeader("Content-Type", "application/json");
-      const dbBefore = loadDb();
-      const tradesBefore = (dbBefore.operational_limits as Record<string, number>)?.trades_executed_today ?? 0;
+      const tradesBefore = (loadDb().operational_limits as Record<string, number>)?.trades_executed_today ?? 0;
       const payload = buildTestPayload();
-      const result = await injectPayload(payload);
-      if (!result.ok) {
-        res.statusCode = 503;
-        res.end(JSON.stringify(result));
-        return;
-      }
-      await new Promise((r) => setTimeout(r, 1500));
-      const dbAfter = loadDb();
-      const tradesAfter = (dbAfter.operational_limits as Record<string, number>)?.trades_executed_today ?? 0;
-      const verified = tradesAfter > tradesBefore;
-      if (!verified) {
-        res.statusCode = 200;
-        res.end(
-          JSON.stringify({
-            ok: true,
-            verified: false,
-            error:
-              "Orchestrator not updating db. Ensure: (1) Both run from same folder, (2) Orchestrator started first with: cd project && $env:PAPER_TRADING=\"1\"; npm start",
-          })
-        );
-        return;
-      }
+      await processPayloadInProcess(engine, payload);
+      const tradesAfter = (loadDb().operational_limits as Record<string, number>)?.trades_executed_today ?? 0;
       res.statusCode = 200;
-      res.end(JSON.stringify({ ok: true, verified: true }));
+      res.end(JSON.stringify({ ok: true, verified: tradesAfter > tradesBefore }));
       return;
     }
 
     if (req.method === "POST" && req.url === "/api/test-trade-real") {
       res.setHeader("Content-Type", "application/json");
-      const dbBefore = loadDb();
-      const tradesBefore = (dbBefore.operational_limits as Record<string, number>)?.trades_executed_today ?? 0;
-
       let realData: Awaited<ReturnType<typeof fetchRealQuote>>;
       try {
         realData = await fetchRealQuote();
       } catch (err) {
         res.statusCode = 503;
-        res.end(
-          JSON.stringify({
-            ok: false,
-            error: `Fetch failed: ${err instanceof Error ? err.message : String(err)}`,
-          })
-        );
+        res.end(JSON.stringify({ ok: false, error: `Fetch failed: ${err instanceof Error ? err.message : String(err)}` }));
         return;
       }
-
       if (!realData) {
         res.statusCode = 200;
-        res.end(
-          JSON.stringify({
-            ok: false,
-            error: "No 0DTE SPY/QQQ option with valid bid/ask found. Try during market hours.",
-          })
-        );
+        res.end(JSON.stringify({ ok: false, error: "No 0DTE SPY/QQQ option with valid bid/ask found. Try during market hours." }));
         return;
       }
-
-      const result = await injectPayload(realData.payload);
-      if (!result.ok) {
-        res.statusCode = 503;
-        res.end(JSON.stringify(result));
-        return;
-      }
-      await new Promise((r) => setTimeout(r, 1500));
-      const dbAfter = loadDb();
-      const tradesAfter = (dbAfter.operational_limits as Record<string, number>)?.trades_executed_today ?? 0;
-      const verified = tradesAfter > tradesBefore;
-      if (!verified) {
-        res.statusCode = 200;
-        res.end(
-          JSON.stringify({
-            ok: true,
-            verified: false,
-            source: realData.source,
-            error:
-              "Orchestrator not updating db. Ensure: (1) Both run from same folder, (2) Orchestrator started first with: cd project && $env:PAPER_TRADING=\"1\"; npm start",
-          })
-        );
-        return;
-      }
+      const tradesBefore = (loadDb().operational_limits as Record<string, number>)?.trades_executed_today ?? 0;
+      await processPayloadInProcess(engine, realData.payload);
+      const tradesAfter = (loadDb().operational_limits as Record<string, number>)?.trades_executed_today ?? 0;
       res.statusCode = 200;
-      res.end(JSON.stringify({ ok: true, verified: true, source: realData.source }));
+      res.end(JSON.stringify({ ok: true, verified: tradesAfter > tradesBefore, source: realData.source }));
       return;
     }
 
@@ -195,15 +151,13 @@ export function startMonitor() {
     res.end("Not Found");
   });
 
-  server.on("error", (err) => {
-    console.error("[Monitor] Error:", err.message);
-  });
-
+  server.on("error", (err) => console.error("[Monitor] Error:", err.message));
   server.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Monitor] http://127.0.0.1:${PORT}/api/status (also http://0.0.0.0:${PORT})`);
+    console.log(`[Monitor] http://127.0.0.1:${PORT}/ (engine in-process, no npm start needed)`);
   });
-
-  return server;
 }
 
-startMonitor();
+main().catch((err) => {
+  logger.error(`Fatal: ${err}`);
+  process.exit(1);
+});

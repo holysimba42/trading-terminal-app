@@ -30,6 +30,7 @@ module.exports = {
       autorestart: true,
       error_file: "logs/monitor-error.log",
       out_file: "logs/monitor-out.log",
+      env: { PAPER_TRADING: "1" },
     },
   ],
 };

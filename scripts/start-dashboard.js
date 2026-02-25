@@ -51,7 +51,7 @@ function waitForReady() {
   });
 }
 
-const serverPath = path.join(PROJECT_ROOT, "dist/engine/dashboard-server.js");
+const serverPath = path.join(PROJECT_ROOT, "dist/engine/monitor.js");
 if (!fs.existsSync(serverPath)) {
   console.error("Run 'npm run build' first.");
   process.exit(1);
@@ -68,7 +68,7 @@ try {
 }
 await new Promise((r) => setTimeout(r, 500));
 
-const monitor = spawn("node", ["dist/engine/dashboard-server.js"], {
+const monitor = spawn("node", ["dist/engine/monitor.js"], {
   cwd: PROJECT_ROOT,
   stdio: "inherit",
   env: { ...process.env, PAPER_TRADING: "1" },
